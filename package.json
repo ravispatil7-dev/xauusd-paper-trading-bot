@@ -1,0 +1,24 @@
+{
+  "name": "goldbot-trading",
+  "version": "1.0.0",
+  "description": "AI-powered XAU/USD paper trading bot with auto signals",
+  "main": "index.js",
+  "scripts": {
+    "build": "echo 'Static files ready'",
+    "sync": "npx cap sync",
+    "android": "npx cap open android",
+    "build:android": "npx cap copy android && cd android && ./gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^5.7.0",
+    "@capacitor/core": "^5.7.0",
+    "@capacitor/push-notifications": "^5.1.0",
+    "@capacitor/splash-screen": "^5.0.7"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^5.7.0"
+  },
+  "keywords": ["trading", "gold", "xauusd", "paper-trading", "ai"],
+  "author": "",
+  "license": "MIT"
+}

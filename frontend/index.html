@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>XAU/USD Paper Trading Bot</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        :root {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-card: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --buy: #22c55e;
+            --sell: #ef4444;
+            --hold: #f59e0b;
+            --accent: #3b82f6;
+            --border: #475569;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            padding: 12px 16px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .logo i {
+            color: #ffd700;
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--buy);
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.disconnected {
+            background: var(--sell);
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .price-display {
+            display: flex;
+            align-items: baseline;
+            gap: 12px;
+        }
+
+        .current-price {
+            font-size: 32px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .price-change {
+            font-size: 14px;
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 6px;
+        }
+
+        .price-change.up {
+            background: rgba(34, 197, 94, 0.2);
+            color: var(--buy);
+        }
+
+        .price-change.down {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--sell);
+        }
+
+        /* Signal Banner */
+        .signal-banner {
+            margin: 12px 16px;
+            padding: 16px;
+            border-radius: 16px;
+            background: var(--bg-secondary);
+            border: 2px solid var(--border);
+            transition: all 0.3s ease;
+        }
+
+        .signal-banner.BUY {
+            border-color: var(--buy);
+            background: rgba(34, 197, 94, 0.1);
+        }
+
+        .signal-banner.SELL {
+            border-color: var(--sell);
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .signal-banner.HOLD {
+            border-color: var(--hold);
+            background: rgba(245, 158, 11, 0.1);
+        }
+
+        .signal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .signal-type {
+            font-size: 24px;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .signal-type.BUY { color: var(--buy); }
+        .signal-type.SELL { color: var(--sell); }
+        .signal-type.HOLD { color: var(--hold); }
+
+        .signal-strength {
+            font-size: 14px;
+            font-weight: 600;
+            padding: 4px 12px;
+            border-radius: 20px;
+            background: var(--bg-card);
+        }
+
+        .signal-reason {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        /* Chart Section */
+        .chart-section {
+            margin: 12px 16px;
+            padding: 16px;
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            border: 1px solid var(--border);
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .chart-title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .timeframe-buttons {
+            display: flex;
+            gap: 4px;
+        }
+
+        .tf-btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 8px;
+            background: var(--bg-card);
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .tf-btn.active {
+            background: var(--accent);
+            color: white;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 250px;
+        }
+
+        /* Portfolio Card */
+        .portfolio-card {
+            margin: 12px 16px;
+            padding: 16px;
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            border-radius: 16px;
+            border: 1px solid var(--border);
+        }
+
+        .portfolio-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .portfolio-title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .reset-btn {
+            padding: 6px 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .portfolio-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .portfolio-item {
+            background: var(--bg-primary);
+            padding: 12px;
+            border-radius: 12px;
+        }
+
+        .portfolio-label {
+            font-size: 11px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .portfolio-value {
+            font-size: 18px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .portfolio-value.positive { color: var(--buy); }
+        .portfolio-value.negative { color: var(--sell); }
+
+        /* Trading Buttons */
+        .trade-actions {
+            margin: 12px 16px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .trade-btn {
+            padding: 18px;
+            border: none;
+            border-radius: 16px;
+            font-size: 18px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .trade-btn:active {
+            transform: scale(0.96);
+        }
+
+        .trade-btn.buy {
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(34, 197, 94, 0.3);
+        }
+
+        .trade-btn.sell {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+        }
+
+        .trade-btn .btn-label {
+            font-size: 12px;
+            opacity: 0.9;
+            font-weight: 500;
+        }
+
+        /* Auto Trade Toggle */
+        .auto-trade-section {
+            margin: 12px 16px;
+            padding: 16px;
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            border: 1px solid var(--border);
+        }
+
+        .auto-trade-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 52px;
+            height: 28px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--bg-card);
+            border-radius: 28px;
+            transition: 0.3s;
+        }
+
+        .toggle-slider:before {
+            content: "";
+            position: absolute;
+            height: 22px;
+            width: 22px;
+            left: 3px;
+            bottom: 3px;
+            background: white;
+            border-radius: 50%;
+            transition: 0.3s;
+        }
+
+        input:checked + .toggle-slider {
+            background: var(--buy);
+        }
+
+        input:checked + .toggle-slider:before {
+            transform: translateX(24px);
+        }
+
+        .auto-settings {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 12px;
+        }
+
+        .setting-item {
+            background: var(--bg-primary);
+            padding: 12px;
+            border-radius: 12px;
+        }
+
+        .setting-label {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+
+        .setting-value {
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        /* Open Trades */
+        .trades-section {
+            margin: 12px 16px;
+            padding: 16px;
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            border: 1px solid var(--border);
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .trade-count {
+            background: var(--accent);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .trade-item {
+            background: var(--bg-primary);
+            padding: 14px;
+            border-radius: 12px;
+            margin-bottom: 8px;
+            border-left: 4px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .trade-item.BUY { border-left-color: var(--buy); }
+        .trade-item.SELL { border-left-color: var(--sell); }
+
+        .trade-info {
+            flex: 1;
+        }
+
+        .trade-type {
+            font-size: 14px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .trade-type.BUY { color: var(--buy); }
+        .trade-type.SELL { color: var(--sell); }
+
+        .trade-details {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .trade-pnl {
+            text-align: right;
+        }
+
+        .trade-pnl-value {
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .trade-pnl-value.positive { color: var(--buy); }
+        .trade-pnl-value.negative { color: var(--sell); }
+
+        .close-trade-btn {
+            margin-top: 4px;
+            padding: 4px 12px;
+            border: 1px solid var(--sell);
+            border-radius: 6px;
+            background: transparent;
+            color: var(--sell);
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        /* Indicators */
+        .indicators-section {
+            margin: 12px 16px;
+            padding: 16px;
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            border: 1px solid var(--border);
+        }
+
+        .indicators-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+
+        .indicator-item {
+            background: var(--bg-primary);
+            padding: 10px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .indicator-name {
+            font-size: 10px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .indicator-value {
+            font-size: 14px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Recent Trades */
+        .recent-trades {
+            margin: 12px 16px 80px;
+            padding: 16px;
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            border: 1px solid var(--border);
+        }
+
+        .recent-trade-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .recent-trade-item:last-child {
+            border-bottom: none;
+        }
+
+        .recent-trade-info {
+            font-size: 13px;
+        }
+
+        .recent-trade-pnl {
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .recent-trade-pnl.positive { color: var(--buy); }
+        .recent-trade-pnl.negative { color: var(--sell); }
+
+        /* Bottom Nav */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: space-around;
+            padding: 8px 0;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            padding: 6px 16px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 11px;
+            transition: color 0.2s;
+        }
+
+        .nav-item.active {
+            color: var(--accent);
+        }
+
+        .nav-item i {
+            font-size: 20px;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            z-index: 200;
+            align-items: flex-end;
+            justify-content: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--bg-secondary);
+            width: 100%;
+            max-width: 500px;
+            border-radius: 24px 24px 0 0;
+            padding: 24px;
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 24px;
+            cursor: pointer;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 14px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 16px;
+            -webkit-appearance: none;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .submit-btn {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 8px;
+        }
+
+        .submit-btn.buy {
+            background: var(--buy);
+            color: white;
+        }
+
+        .submit-btn.sell {
+            background: var(--sell);
+            color: white;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-100px);
+            background: var(--bg-secondary);
+            padding: 14px 24px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            z-index: 300;
+            opacity: 0;
+            transition: all 0.3s ease;
+            font-size: 14px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        .toast.success { border-color: var(--buy); color: var(--buy); }
+        .toast.error { border-color: var(--sell); color: var(--sell); }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 2px;
+        }
+
+        /* Responsive */
+        @media (min-width: 768px) {
+            body {
+                max-width: 480px;
+                margin: 0 auto;
+                border-left: 1px solid var(--border);
+                border-right: 1px solid var(--border);
+            }
+
+            .bottom-nav {
+                max-width: 480px;
+                left: 50%;
+                transform: translateX(-50%);
+            }
+        }
+    </style>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/icon-192x192.png">
+    <script>
+        // Register Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then((registration) => {
+                        console.log('[PWA] SW registered:', registration.scope);
+                    })
+                    .catch((err) => {
+                        console.log('[PWA] SW registration failed:', err);
+                    });
+            });
+        }
+
+        // Request notification permission for signal alerts
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+
+        // IndexedDB for offline trade queue
+        const dbRequest = indexedDB.open('GoldBotDB', 1);
+        dbRequest.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains('pendingTrades')) {
+                db.createObjectStore('pendingTrades', { keyPath: 'id' });
+            }
+        };
+    </script>
+</head>
+<body>
+
+    <!-- PWA Install Banner -->
+    <div id="installBanner" style="display:none; position:fixed; top:0; left:0; right:0; background:linear-gradient(135deg, #3b82f6, #1d4ed8); color:white; padding:14px 16px; z-index:500; align-items:center; justify-content:space-between;">
+        <div style="display:flex; align-items:center; gap:10px;">
+            <img src="/icon-48x48.png" style="width:32px; height:32px; border-radius:8px;" onerror="this.style.display='none'">
+            <div>
+                <div style="font-weight:700; font-size:14px;">Install GoldBot</div>
+                <div style="font-size:12px; opacity:0.9;">Add to home screen for app-like experience</div>
+            </div>
+        </div>
+        <button onclick="installPWA()" style="background:white; color:#1d4ed8; border:none; padding:8px 16px; border-radius:8px; font-weight:700; font-size:13px; cursor:pointer;">Install</button>
+        <button onclick="dismissInstall()" style="background:none; border:none; color:white; font-size:20px; cursor:pointer; margin-left:8px;">&times;</button>
+    </div>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="header-top">
+            <div class="logo">
+                <i class="fas fa-coins"></i>
+                <span>XAU/USD Bot</span>
+            </div>
+            <div class="connection-status">
+                <div class="status-dot" id="statusDot"></div>
+                <span id="statusText">Live</span>
+            </div>
+        </div>
+        <div class="price-display">
+            <div class="current-price" id="currentPrice">2345.50</div>
+            <div class="price-change up" id="priceChange">+0.00%</div>
+        </div>
+    </header>
+
+    <!-- Signal Banner -->
+    <div class="signal-banner HOLD" id="signalBanner">
+        <div class="signal-header">
+            <div class="signal-type HOLD" id="signalType">
+                <i class="fas fa-hand-paper"></i>
+                HOLD
+            </div>
+            <div class="signal-strength" id="signalStrength">Strength: 0%</div>
+        </div>
+        <div class="signal-reason" id="signalReason">Initializing AI engine...</div>
+    </div>
+
+    <!-- Chart -->
+    <div class="chart-section">
+        <div class="chart-header">
+            <div class="chart-title">Price Chart</div>
+            <div class="timeframe-buttons">
+                <button class="tf-btn active">1M</button>
+                <button class="tf-btn">5M</button>
+                <button class="tf-btn">15M</button>
+            </div>
+        </div>
+        <div class="chart-container">
+            <canvas id="priceChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Portfolio -->
+    <div class="portfolio-card">
+        <div class="portfolio-header">
+            <div class="portfolio-title">Paper Portfolio</div>
+            <button class="reset-btn" onclick="resetPortfolio()">
+                <i class="fas fa-rotate-right"></i> Reset
+            </button>
+        </div>
+        <div class="portfolio-grid">
+            <div class="portfolio-item">
+                <div class="portfolio-label">Balance</div>
+                <div class="portfolio-value" id="balance">$10,000.00</div>
+            </div>
+            <div class="portfolio-item">
+                <div class="portfolio-label">Equity</div>
+                <div class="portfolio-value" id="equity">$10,000.00</div>
+            </div>
+            <div class="portfolio-item">
+                <div class="portfolio-label">P&L</div>
+                <div class="portfolio-value" id="totalPnl">$0.00</div>
+            </div>
+            <div class="portfolio-item">
+                <div class="portfolio-label">Win Rate</div>
+                <div class="portfolio-value" id="winRate">0%</div>
+            </div>
+            <div class="portfolio-item">
+                <div class="portfolio-label">Free Margin</div>
+                <div class="portfolio-value" id="freeMargin">$10,000.00</div>
+            </div>
+            <div class="portfolio-item">
+                <div class="portfolio-label">Max DD</div>
+                <div class="portfolio-value negative" id="maxDrawdown">0%</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Trade Buttons -->
+    <div class="trade-actions">
+        <button class="trade-btn buy" onclick="openTradeModal('BUY')">
+            <span>BUY</span>
+            <span class="btn-label">XAU/USD</span>
+        </button>
+        <button class="trade-btn sell" onclick="openTradeModal('SELL')">
+            <span>SELL</span>
+            <span class="btn-label">XAU/USD</span>
+        </button>
+    </div>
+
+    <!-- Auto Trade -->
+    <div class="auto-trade-section">
+        <div class="auto-trade-header">
+            <div>
+                <div style="font-weight: 700; margin-bottom: 2px;">AI Auto Trading</div>
+                <div style="font-size: 12px; color: var(--text-secondary);">Let AI trade for you</div>
+            </div>
+            <label class="toggle-switch">
+                <input type="checkbox" id="autoTradeToggle" onchange="toggleAutoTrade()">
+                <span class="toggle-slider"></span>
+            </label>
+        </div>
+        <div class="auto-settings">
+            <div class="setting-item">
+                <div class="setting-label">Risk/Trade</div>
+                <div class="setting-value">2%</div>
+            </div>
+            <div class="setting-item">
+                <div class="setting-label">Max Trades</div>
+                <div class="setting-value">3</div>
+            </div>
+            <div class="setting-item">
+                <div class="setting-label">Min Strength</div>
+                <div class="setting-value">70%</div>
+            </div>
+            <div class="setting-item">
+                <div class="setting-label">Strategy</div>
+                <div class="setting-value">AI Signal</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Indicators -->
+    <div class="indicators-section">
+        <div class="section-header">
+            <div class="section-title">Technical Indicators</div>
+        </div>
+        <div class="indicators-grid">
+            <div class="indicator-item">
+                <div class="indicator-name">RSI</div>
+                <div class="indicator-value" id="rsiValue">--</div>
+            </div>
+            <div class="indicator-item">
+                <div class="indicator-name">EMA 9</div>
+                <div class="indicator-value" id="emaFast">--</div>
+            </div>
+            <div class="indicator-item">
+                <div class="indicator-name">EMA 21</div>
+                <div class="indicator-value" id="emaSlow">--</div>
+            </div>
+            <div class="indicator-item">
+                <div class="indicator-name">MACD</div>
+                <div class="indicator-value" id="macdValue">--</div>
+            </div>
+            <div class="indicator-item">
+                <div class="indicator-name">BB Upper</div>
+                <div class="indicator-value" id="bbUpper">--</div>
+            </div>
+            <div class="indicator-item">
+                <div class="indicator-name">BB Lower</div>
+                <div class="indicator-value" id="bbLower">--</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Open Trades -->
+    <div class="trades-section">
+        <div class="section-header">
+            <div class="section-title">Open Positions</div>
+            <div class="trade-count" id="openTradeCount">0</div>
+        </div>
+        <div id="openTradesList">
+            <div style="text-align: center; padding: 20px; color: var(--text-secondary); font-size: 14px;">
+                No open positions
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Trades -->
+    <div class="recent-trades">
+        <div class="section-header">
+            <div class="section-title">Recent Trades</div>
+        </div>
+        <div id="recentTradesList">
+            <div style="text-align: center; padding: 20px; color: var(--text-secondary); font-size: 14px;">
+                No trades yet
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Nav -->
+    <nav class="bottom-nav">
+        <a href="#" class="nav-item active" onclick="showTab('trade')">
+            <i class="fas fa-chart-line"></i>
+            <span>Trade</span>
+        </a>
+        <a href="#" class="nav-item" onclick="showTab('signals')">
+            <i class="fas fa-robot"></i>
+            <span>Signals</span>
+        </a>
+        <a href="#" class="nav-item" onclick="showTab('history')">
+            <i class="fas fa-list"></i>
+            <span>History</span>
+        </a>
+        <a href="#" class="nav-item" onclick="showTab('settings')">
+            <i class="fas fa-cog"></i>
+            <span>Settings</span>
+        </a>
+    </nav>
+
+    <!-- Trade Modal -->
+    <div class="modal-overlay" id="tradeModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title" id="modalTitle">New Trade</div>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Order Type</label>
+                <select class="form-input" id="orderType">
+                    <option value="MARKET">Market Order</option>
+                    <option value="LIMIT">Limit Order</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Quantity (Lots)</label>
+                <input type="number" class="form-input" id="tradeQuantity" value="0.01" step="0.01" min="0.01" max="10">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Stop Loss (optional)</label>
+                <input type="number" class="form-input" id="stopLoss" placeholder="Auto">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Take Profit (optional)</label>
+                <input type="number" class="form-input" id="takeProfit" placeholder="Auto">
+            </div>
+            <button class="submit-btn" id="submitTradeBtn" onclick="submitTrade()">Place Order</button>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <script src="app.js"></script>
+
+    <script>
+        let deferredPrompt = null;
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            document.getElementById('installBanner').style.display = 'flex';
+        });
+
+        function installPWA() {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        console.log('[PWA] User installed app');
+                    }
+                    deferredPrompt = null;
+                    document.getElementById('installBanner').style.display = 'none';
+                });
+            }
+        }
+
+        function dismissInstall() {
+            document.getElementById('installBanner').style.display = 'none';
+        }
+
+        // Check if running as installed PWA
+        if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
+            console.log('[PWA] Running in standalone mode');
+        }
+    </script>
+</body>
+</html>
